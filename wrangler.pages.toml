@@ -1,0 +1,21 @@
+# Cloudflare Pages Configuration for Agent Trainer
+# This file configures Cloudflare Pages deployments
+#
+# REQUIRED: Set these environment variables in your Cloudflare Pages project:
+#   - AGENTS_KV_ID: Your AGENTS_KV namespace ID
+#   - TRAINING_JOBS_KV_ID: Your TRAINING_JOBS_KV namespace ID
+#
+# To get namespace IDs:
+#   1. Go to Cloudflare Dashboard > Workers & Pages > KV
+#   2. Create namespace "agent-trainer-agents" (or any name)
+#   3. Create namespace "agent-trainer-training-jobs" (or any name)
+#   4. Copy the IDs and add as environment variables in Pages settings
+
+name = "agent-trainer"
+compatibility_date = "2024-08-01"
+
+[build]
+command = "npm run deploy"
+
+[build.environment]
+NODE_VERSION = "22"

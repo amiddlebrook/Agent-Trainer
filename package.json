@@ -6,12 +6,12 @@
   "scripts": {
     "dev": "wrangler dev",
     "predeploy": "node scripts/check-config.js",
-    "deploy": "wrangler deploy",
-    "deploy:ci": "node scripts/configure-wrangler.js && wrangler deploy",
+    "deploy": "node scripts/check-config.js && wrangler deploy",
     "start": "wrangler dev",
     "setup": "bash scripts/setup.sh",
     "setup:check": "node scripts/check-config.js",
-    "configure": "node scripts/configure-wrangler.js"
+    "configure": "node scripts/configure-wrangler.js",
+    "build": "node scripts/check-config.js"
   },
   "keywords": [
     "cloudflare",
