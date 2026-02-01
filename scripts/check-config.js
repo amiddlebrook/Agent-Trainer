@@ -2,14 +2,14 @@
 
 /**
  * Configuration checker for Agent Trainer
- * Validates that wrangler.toml is properly configured before deployment
  *
- * In CI environments with required env vars, automatically runs configuration
+ * This script:
+ * 1. Injects KV namespace configuration from environment variables
+ * 2. Validates wrangler.toml is properly configured before deployment
  */
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
 
 const PLACEHOLDER_PATTERNS = [
   'your_kv_namespace_id',
@@ -35,19 +35,60 @@ function hasRequiredEnvVars() {
   return !!(process.env.AGENTS_KV_ID && process.env.TRAINING_JOBS_KV_ID);
 }
 
-function runConfigureScript() {
-  console.log('\x1b[33mCI environment detected with KV namespace environment variables.\x1b[0m');
-  console.log('Auto-configuring wrangler.toml...');
-  console.log('');
+function injectKvConfig(wranglerPath) {
+  const agentsKvId = process.env.AGENTS_KV_ID;
+  const trainingJobsKvId = process.env.TRAINING_JOBS_KV_ID;
 
-  try {
-    const configureScript = path.join(__dirname, 'configure-wrangler.js');
-    execSync(`node "${configureScript}"`, { stdio: 'inherit' });
-    return true;
-  } catch (error) {
-    console.error('\x1b[31mFailed to auto-configure wrangler.toml\x1b[0m');
+  if (!agentsKvId || !trainingJobsKvId) {
     return false;
   }
+
+  const agentsKvPreviewId = process.env.AGENTS_KV_PREVIEW_ID || agentsKvId;
+  const trainingJobsKvPreviewId = process.env.TRAINING_JOBS_KV_PREVIEW_ID || trainingJobsKvId;
+
+  let content = fs.readFileSync(wranglerPath, 'utf-8');
+
+  // Check if KV namespaces are already configured (not placeholders)
+  const hasAgentsKv = content.includes('binding = "AGENTS_KV"') && !PLACEHOLDER_PATTERNS.some(p => content.includes(p));
+
+  if (hasAgentsKv) {
+    console.log('KV namespaces already configured in wrangler.toml');
+    return true;
+  }
+
+  // Remove any existing [[kv_namespaces]] blocks with placeholders
+  content = content.replace(/\[\[kv_namespaces\]\][^\[]*binding = "AGENTS_KV"[^\[]*/g, '');
+  content = content.replace(/\[\[kv_namespaces\]\][^\[]*binding = "TRAINING_JOBS_KV"[^\[]*/g, '');
+
+  // Find where to insert KV config (before [vars] or at end of file)
+  const kvConfig = `
+[[kv_namespaces]]
+binding = "AGENTS_KV"
+id = "${agentsKvId}"
+preview_id = "${agentsKvPreviewId}"
+
+[[kv_namespaces]]
+binding = "TRAINING_JOBS_KV"
+id = "${trainingJobsKvId}"
+preview_id = "${trainingJobsKvPreviewId}"
+
+`;
+
+  // Insert before [vars] section
+  if (content.includes('[vars]')) {
+    content = content.replace('[vars]', kvConfig + '[vars]');
+  } else {
+    content = content + '\n' + kvConfig;
+  }
+
+  fs.writeFileSync(wranglerPath, content);
+
+  console.log('\x1b[32mKV namespaces configured from environment variables:\x1b[0m');
+  console.log(`  AGENTS_KV: ${agentsKvId}`);
+  console.log(`  TRAINING_JOBS_KV: ${trainingJobsKvId}`);
+  console.log('');
+
+  return true;
 }
 
 function checkConfig() {
@@ -55,76 +96,72 @@ function checkConfig() {
 
   if (!fs.existsSync(wranglerPath)) {
     console.error('\x1b[31mError: wrangler.toml not found!\x1b[0m');
-    console.error('');
-    console.error('Please copy wrangler.toml.example to wrangler.toml and configure it:');
-    console.error('  cp wrangler.toml.example wrangler.toml');
-    console.error('  npm run setup');
     process.exit(1);
   }
 
+  // Always try to inject KV config from environment variables
+  if (hasRequiredEnvVars()) {
+    injectKvConfig(wranglerPath);
+  }
+
+  // Read the (potentially modified) wrangler.toml
   const content = fs.readFileSync(wranglerPath, 'utf-8');
+
+  // Check for placeholders
   const foundPlaceholders = PLACEHOLDER_PATTERNS.filter(p => content.includes(p));
-
   if (foundPlaceholders.length > 0) {
-    // In CI with env vars, auto-configure
-    if (isCI() && hasRequiredEnvVars()) {
-      if (runConfigureScript()) {
-        // Re-check after configuration
-        const newContent = fs.readFileSync(wranglerPath, 'utf-8');
-        const remainingPlaceholders = PLACEHOLDER_PATTERNS.filter(p => newContent.includes(p));
-        if (remainingPlaceholders.length === 0) {
-          console.log('');
-          console.log('\x1b[32mConfiguration check passed after auto-configuration!\x1b[0m');
-          process.exit(0);
-        }
-      }
-    }
-
     console.error('\x1b[31mError: wrangler.toml contains placeholder values!\x1b[0m');
-    console.error('');
-    console.error('The following placeholders need to be replaced:');
-    foundPlaceholders.forEach(p => console.error(`  - ${p}`));
-    console.error('');
+    console.error('Placeholders found:', foundPlaceholders.join(', '));
+    showSetupInstructions();
+    process.exit(1);
+  }
 
-    if (isCI()) {
-      console.error('\x1b[33m╔══════════════════════════════════════════════════════════════════╗\x1b[0m');
-      console.error('\x1b[33m║  CI ENVIRONMENT DETECTED - KV NAMESPACES NOT CONFIGURED         ║\x1b[0m');
-      console.error('\x1b[33m╚══════════════════════════════════════════════════════════════════╝\x1b[0m');
-      console.error('');
-      console.error('\x1b[36mSTEP 1: Create KV Namespaces in Cloudflare Dashboard\x1b[0m');
-      console.error('  1. Go to: https://dash.cloudflare.com → Workers & Pages → KV');
-      console.error('  2. Click "Create a namespace"');
-      console.error('  3. Create: "agent-trainer-agents" (copy the ID)');
-      console.error('  4. Create: "agent-trainer-training-jobs" (copy the ID)');
-      console.error('');
-      console.error('\x1b[36mSTEP 2: Add Environment Variables to Cloudflare Pages\x1b[0m');
-      console.error('  1. Go to: Workers & Pages → Your Project → Settings');
-      console.error('  2. Click "Environment Variables"');
-      console.error('  3. Add for Production AND Preview:');
-      console.error('     • AGENTS_KV_ID = <paste AGENTS namespace ID>');
-      console.error('     • TRAINING_JOBS_KV_ID = <paste TRAINING_JOBS namespace ID>');
-      console.error('');
-      console.error('\x1b[36mSTEP 3: Update Deploy Command\x1b[0m');
-      console.error('  1. Go to: Workers & Pages → Your Project → Settings → Build');
-      console.error('  2. Change "Deploy command" from "npx wrangler deploy" to:');
-      console.error('     \x1b[32mnpm run deploy\x1b[0m');
-      console.error('');
-      console.error('\x1b[33mThen retry the deployment.\x1b[0m');
-      console.error('');
-    } else {
-      console.error('Run the setup script to configure KV namespaces:');
-      console.error('  npm run setup');
-      console.error('');
-      console.error('Or manually create namespaces and update wrangler.toml:');
-      console.error('  wrangler kv:namespace create "AGENTS_KV"');
-      console.error('  wrangler kv:namespace create "TRAINING_JOBS_KV"');
-    }
+  // Check if KV namespaces are configured
+  const hasKvConfig = content.includes('binding = "AGENTS_KV"') && content.includes('binding = "TRAINING_JOBS_KV"');
+
+  if (!hasKvConfig) {
+    console.error('\x1b[31mError: KV namespaces not configured!\x1b[0m');
+    console.error('');
+    showSetupInstructions();
     process.exit(1);
   }
 
   console.log('\x1b[32mConfiguration check passed!\x1b[0m');
-  console.log('wrangler.toml is properly configured.');
   process.exit(0);
+}
+
+function showSetupInstructions() {
+  if (isCI()) {
+    console.error('\x1b[33m╔══════════════════════════════════════════════════════════════════╗\x1b[0m');
+    console.error('\x1b[33m║  CI ENVIRONMENT DETECTED - KV NAMESPACES NOT CONFIGURED         ║\x1b[0m');
+    console.error('\x1b[33m╚══════════════════════════════════════════════════════════════════╝\x1b[0m');
+    console.error('');
+    console.error('\x1b[36mSTEP 1: Create KV Namespaces in Cloudflare Dashboard\x1b[0m');
+    console.error('  1. Go to: https://dash.cloudflare.com → Workers & Pages → KV');
+    console.error('  2. Click "Create a namespace"');
+    console.error('  3. Create: "agent-trainer-agents" (copy the ID)');
+    console.error('  4. Create: "agent-trainer-training-jobs" (copy the ID)');
+    console.error('');
+    console.error('\x1b[36mSTEP 2: Add Environment Variables\x1b[0m');
+    console.error('  In Cloudflare Pages (Settings → Environment Variables):');
+    console.error('     • AGENTS_KV_ID = <your AGENTS namespace ID>');
+    console.error('     • TRAINING_JOBS_KV_ID = <your TRAINING_JOBS namespace ID>');
+    console.error('');
+    console.error('\x1b[36mSTEP 3: Change Deploy Command\x1b[0m');
+    console.error('  In Cloudflare Pages (Settings → Builds & deployments):');
+    console.error('  Change deploy command from "npx wrangler deploy" to:');
+    console.error('     \x1b[32mnpm run deploy\x1b[0m');
+    console.error('');
+  } else {
+    console.error('Run the setup script to configure KV namespaces:');
+    console.error('  npm run setup');
+    console.error('');
+    console.error('Or manually create namespaces and set environment variables:');
+    console.error('  wrangler kv:namespace create "AGENTS_KV"');
+    console.error('  wrangler kv:namespace create "TRAINING_JOBS_KV"');
+    console.error('  export AGENTS_KV_ID=<id from above>');
+    console.error('  export TRAINING_JOBS_KV_ID=<id from above>');
+  }
 }
 
 checkConfig();

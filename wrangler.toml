@@ -3,51 +3,23 @@ main = "src/index.js"
 compatibility_date = "2024-08-01"
 
 # ==============================================================================
-# SETUP REQUIRED: KV Namespace Configuration
+# KV NAMESPACE CONFIGURATION
 # ==============================================================================
-# The KV namespace IDs below are PLACEHOLDERS and must be replaced before deployment.
+# KV namespaces are configured automatically from environment variables during
+# deployment. DO NOT add placeholder values here - they will cause deploy to fail.
 #
-# OPTION 1: Local Development (Quick setup)
-#   npm run setup
+# Required environment variables (set in Cloudflare Pages or CI):
+#   - AGENTS_KV_ID: Your AGENTS_KV namespace ID
+#   - TRAINING_JOBS_KV_ID: Your TRAINING_JOBS_KV namespace ID
 #
-# OPTION 2: CI/CD Deployment (Cloudflare Pages, GitHub Actions, etc.)
-#   The predeploy hook automatically configures wrangler.toml when these
-#   environment variables are set and a CI environment is detected:
+# To create KV namespaces:
+#   1. Go to Cloudflare Dashboard → Workers & Pages → KV
+#   2. Create "agent-trainer-agents" and "agent-trainer-training-jobs"
+#   3. Copy the namespace IDs
+#   4. Add as environment variables in your Cloudflare Pages project
 #
-#   Required environment variables:
-#     - AGENTS_KV_ID: Your AGENTS_KV namespace ID
-#     - TRAINING_JOBS_KV_ID: Your TRAINING_JOBS_KV namespace ID
-#
-#   Optional environment variables:
-#     - AGENTS_KV_PREVIEW_ID: Preview namespace ID (defaults to production)
-#     - TRAINING_JOBS_KV_PREVIEW_ID: Preview namespace ID (defaults to production)
-#
-#   For Cloudflare Pages:
-#     1. Create KV namespaces in Cloudflare Dashboard (Workers & Pages > KV)
-#     2. Add AGENTS_KV_ID and TRAINING_JOBS_KV_ID as environment variables
-#        in your Pages project settings (Settings > Environment Variables)
-#     3. Deploy - configuration happens automatically!
-#
-#   To get namespace IDs locally:
-#     wrangler kv:namespace create "AGENTS_KV"
-#     wrangler kv:namespace create "TRAINING_JOBS_KV"
-#
-# OPTION 3: Manual setup
-#   1. wrangler kv:namespace create "AGENTS_KV"
-#   2. wrangler kv:namespace create "TRAINING_JOBS_KV"
-#   3. wrangler kv:namespace create "AGENTS_KV" --preview
-#   4. wrangler kv:namespace create "TRAINING_JOBS_KV" --preview
-#   5. Replace the placeholder IDs below with the IDs from the command output
+# For local development, run: npm run setup
 # ==============================================================================
-[[kv_namespaces]]
-binding = "AGENTS_KV"
-id = "your_kv_namespace_id"
-preview_id = "your_preview_kv_namespace_id"
-
-[[kv_namespaces]]
-binding = "TRAINING_JOBS_KV"
-id = "your_training_jobs_kv_namespace_id"
-preview_id = "your_preview_training_jobs_kv_namespace_id"
 
 # Environment variables
 [vars]
