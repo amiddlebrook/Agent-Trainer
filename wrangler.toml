@@ -11,18 +11,26 @@ compatibility_date = "2024-08-01"
 #   npm run setup
 #
 # OPTION 2: CI/CD Deployment (Cloudflare Pages, GitHub Actions, etc.)
-#   Set these environment variables, then run: npm run deploy:ci
-#   Required:
+#   The predeploy hook automatically configures wrangler.toml when these
+#   environment variables are set and a CI environment is detected:
+#
+#   Required environment variables:
 #     - AGENTS_KV_ID: Your AGENTS_KV namespace ID
 #     - TRAINING_JOBS_KV_ID: Your TRAINING_JOBS_KV namespace ID
-#   Optional:
+#
+#   Optional environment variables:
 #     - AGENTS_KV_PREVIEW_ID: Preview namespace ID (defaults to production)
 #     - TRAINING_JOBS_KV_PREVIEW_ID: Preview namespace ID (defaults to production)
 #
 #   For Cloudflare Pages:
-#     1. Create KV namespaces in Cloudflare Dashboard
-#     2. Add namespace IDs as environment variables in Pages settings
-#     3. Change build command to: npm run deploy:ci
+#     1. Create KV namespaces in Cloudflare Dashboard (Workers & Pages > KV)
+#     2. Add AGENTS_KV_ID and TRAINING_JOBS_KV_ID as environment variables
+#        in your Pages project settings (Settings > Environment Variables)
+#     3. Deploy - configuration happens automatically!
+#
+#   To get namespace IDs locally:
+#     wrangler kv:namespace create "AGENTS_KV"
+#     wrangler kv:namespace create "TRAINING_JOBS_KV"
 #
 # OPTION 3: Manual setup
 #   1. wrangler kv:namespace create "AGENTS_KV"
