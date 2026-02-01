@@ -7,10 +7,24 @@ compatibility_date = "2024-08-01"
 # ==============================================================================
 # The KV namespace IDs below are PLACEHOLDERS and must be replaced before deployment.
 #
-# Quick setup (recommended):
+# OPTION 1: Local Development (Quick setup)
 #   npm run setup
 #
-# Manual setup:
+# OPTION 2: CI/CD Deployment (Cloudflare Pages, GitHub Actions, etc.)
+#   Set these environment variables, then run: npm run deploy:ci
+#   Required:
+#     - AGENTS_KV_ID: Your AGENTS_KV namespace ID
+#     - TRAINING_JOBS_KV_ID: Your TRAINING_JOBS_KV namespace ID
+#   Optional:
+#     - AGENTS_KV_PREVIEW_ID: Preview namespace ID (defaults to production)
+#     - TRAINING_JOBS_KV_PREVIEW_ID: Preview namespace ID (defaults to production)
+#
+#   For Cloudflare Pages:
+#     1. Create KV namespaces in Cloudflare Dashboard
+#     2. Add namespace IDs as environment variables in Pages settings
+#     3. Change build command to: npm run deploy:ci
+#
+# OPTION 3: Manual setup
 #   1. wrangler kv:namespace create "AGENTS_KV"
 #   2. wrangler kv:namespace create "TRAINING_JOBS_KV"
 #   3. wrangler kv:namespace create "AGENTS_KV" --preview

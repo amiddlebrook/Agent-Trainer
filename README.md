@@ -216,8 +216,9 @@ Agent-Trainer/
 │   └── services/
 │       └── huggingface.js    # HuggingFace API integration
 ├── scripts/
-│   ├── setup.sh              # Automated KV namespace setup
-│   └── check-config.js       # Configuration validation
+│   ├── setup.sh              # Automated KV namespace setup (local)
+│   ├── check-config.js       # Configuration validation
+│   └── configure-wrangler.js # CI/CD configuration generator
 ├── package.json
 ├── wrangler.toml             # Cloudflare Worker configuration
 ├── wrangler.toml.example     # Example configuration template
@@ -244,11 +245,57 @@ npm run setup:check
 
 ### CI/CD Deployment
 
-For automated deployments (e.g., Cloudflare Pages, GitHub Actions), you need to:
+For automated deployments (e.g., Cloudflare Pages, GitHub Actions), use the `deploy:ci` command which configures wrangler.toml from environment variables:
 
-1. Create KV namespaces in your Cloudflare dashboard or via wrangler CLI
-2. Update `wrangler.toml` with the actual namespace IDs before committing
-3. Set the `HUGGINGFACE_API_KEY` secret in your CI/CD environment
+#### Step 1: Create KV Namespaces
+
+Create KV namespaces via Cloudflare dashboard or wrangler CLI:
+
+```bash
+wrangler kv:namespace create "AGENTS_KV"
+wrangler kv:namespace create "TRAINING_JOBS_KV"
+```
+
+Note the namespace IDs from the output.
+
+#### Step 2: Set Environment Variables
+
+Set these environment variables in your CI/CD environment:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `AGENTS_KV_ID` | Yes | KV namespace ID for AGENTS_KV |
+| `TRAINING_JOBS_KV_ID` | Yes | KV namespace ID for TRAINING_JOBS_KV |
+| `AGENTS_KV_PREVIEW_ID` | No | Preview namespace ID (defaults to production) |
+| `TRAINING_JOBS_KV_PREVIEW_ID` | No | Preview namespace ID (defaults to production) |
+| `HUGGINGFACE_API_URL` | No | Custom HuggingFace API URL |
+| `WORKER_NAME` | No | Custom worker name (defaults to 'agent-trainer') |
+
+#### Step 3: Configure Build Command
+
+**For Cloudflare Pages:**
+1. Go to your Pages project settings
+2. Set the build command to: `npm run deploy:ci`
+3. Add the environment variables in the "Environment variables" section
+
+**For GitHub Actions:**
+```yaml
+- name: Deploy to Cloudflare
+  env:
+    AGENTS_KV_ID: ${{ secrets.AGENTS_KV_ID }}
+    TRAINING_JOBS_KV_ID: ${{ secrets.TRAINING_JOBS_KV_ID }}
+    CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  run: npm run deploy:ci
+```
+
+#### Step 4: Set HuggingFace API Key
+
+Set the `HUGGINGFACE_API_KEY` secret:
+```bash
+wrangler secret put HUGGINGFACE_API_KEY
+```
+
+Or configure it in your Cloudflare dashboard under Workers & Pages > your-worker > Settings > Variables
 
 ## Contributing
 
