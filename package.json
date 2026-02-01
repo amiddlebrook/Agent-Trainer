@@ -1,0 +1,24 @@
+{
+  "name": "agent-trainer",
+  "version": "1.0.0",
+  "description": "Cloudflare native agent trainer with HuggingFace integration",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "start": "wrangler dev"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "agent-training",
+    "huggingface",
+    "ml"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240806.0",
+    "wrangler": "^3.60.0"
+  }
+}
