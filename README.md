@@ -47,23 +47,43 @@ cd Agent-Trainer
 npm install
 ```
 
-3. Configure your KV namespaces:
+3. Login to Cloudflare (if not already):
 ```bash
-# Create KV namespaces
-wrangler kv:namespace create "AGENTS_KV"
-wrangler kv:namespace create "TRAINING_JOBS_KV"
-
-# For preview
-wrangler kv:namespace create "AGENTS_KV" --preview
-wrangler kv:namespace create "TRAINING_JOBS_KV" --preview
+wrangler login
 ```
 
-4. Update `wrangler.toml` with your KV namespace IDs
+4. Run the setup script (creates KV namespaces and configures wrangler.toml):
+```bash
+npm run setup
+```
+
+   <details>
+   <summary>Manual setup (alternative)</summary>
+
+   If you prefer to set up manually:
+
+   ```bash
+   # Create KV namespaces
+   wrangler kv:namespace create "AGENTS_KV"
+   wrangler kv:namespace create "TRAINING_JOBS_KV"
+
+   # For preview/development
+   wrangler kv:namespace create "AGENTS_KV" --preview
+   wrangler kv:namespace create "TRAINING_JOBS_KV" --preview
+   ```
+
+   Then update `wrangler.toml` with the namespace IDs from the command output.
+   </details>
 
 5. Set your HuggingFace API key:
 ```bash
 wrangler secret put HUGGINGFACE_API_KEY
 # Enter your API key when prompted
+```
+
+6. Verify your configuration:
+```bash
+npm run setup:check
 ```
 
 ### Development
@@ -195,10 +215,40 @@ Agent-Trainer/
 │   │   └── download.js       # Download handler
 │   └── services/
 │       └── huggingface.js    # HuggingFace API integration
+├── scripts/
+│   ├── setup.sh              # Automated KV namespace setup
+│   └── check-config.js       # Configuration validation
 ├── package.json
-├── wrangler.toml
+├── wrangler.toml             # Cloudflare Worker configuration
+├── wrangler.toml.example     # Example configuration template
 └── README.md
 ```
+
+## Troubleshooting
+
+### "KV namespace 'your_kv_namespace_id' is not valid" error
+
+This error occurs when deploying with placeholder KV namespace IDs. Run the setup script to create and configure your namespaces:
+
+```bash
+npm run setup
+```
+
+### Verifying configuration before deployment
+
+Run the configuration check to ensure everything is set up correctly:
+
+```bash
+npm run setup:check
+```
+
+### CI/CD Deployment
+
+For automated deployments (e.g., Cloudflare Pages, GitHub Actions), you need to:
+
+1. Create KV namespaces in your Cloudflare dashboard or via wrangler CLI
+2. Update `wrangler.toml` with the actual namespace IDs before committing
+3. Set the `HUGGINGFACE_API_KEY` secret in your CI/CD environment
 
 ## Contributing
 
