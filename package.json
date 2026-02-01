@@ -5,8 +5,11 @@
   "main": "src/index.js",
   "scripts": {
     "dev": "wrangler dev",
+    "predeploy": "node scripts/check-config.js",
     "deploy": "wrangler deploy",
-    "start": "wrangler dev"
+    "start": "wrangler dev",
+    "setup": "bash scripts/setup.sh",
+    "setup:check": "node scripts/check-config.js"
   },
   "keywords": [
     "cloudflare",

@@ -1,0 +1,33 @@
+# Example wrangler.toml configuration for Agent Trainer
+# Copy this file to wrangler.toml and replace the placeholder values
+# with your actual Cloudflare KV namespace IDs.
+#
+# Quick setup:
+#   1. Copy this file: cp wrangler.toml.example wrangler.toml
+#   2. Run the setup script: npm run setup
+#   OR manually create namespaces and update the IDs below
+
+name = "agent-trainer"
+main = "src/index.js"
+compatibility_date = "2024-08-01"
+
+# KV Namespace for storing agents
+# Create with: wrangler kv:namespace create "AGENTS_KV"
+[[kv_namespaces]]
+binding = "AGENTS_KV"
+id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"  # Replace with your AGENTS_KV namespace ID
+preview_id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"  # Replace with your AGENTS_KV preview namespace ID
+
+# KV Namespace for storing training jobs
+# Create with: wrangler kv:namespace create "TRAINING_JOBS_KV"
+[[kv_namespaces]]
+binding = "TRAINING_JOBS_KV"
+id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"  # Replace with your TRAINING_JOBS_KV namespace ID
+preview_id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"  # Replace with your TRAINING_JOBS_KV preview namespace ID
+
+# Environment variables
+[vars]
+HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/models"
+
+# Secrets (set with: wrangler secret put HUGGINGFACE_API_KEY)
+# HUGGINGFACE_API_KEY = "your_api_key"
