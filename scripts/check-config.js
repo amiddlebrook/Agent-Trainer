@@ -87,20 +87,30 @@ function checkConfig() {
     console.error('');
 
     if (isCI()) {
-      console.error('\x1b[33mCI Environment Detected\x1b[0m');
+      console.error('\x1b[33m╔══════════════════════════════════════════════════════════════════╗\x1b[0m');
+      console.error('\x1b[33m║  CI ENVIRONMENT DETECTED - KV NAMESPACES NOT CONFIGURED         ║\x1b[0m');
+      console.error('\x1b[33m╚══════════════════════════════════════════════════════════════════╝\x1b[0m');
       console.error('');
-      console.error('Set these environment variables in your CI/CD settings:');
-      console.error('  - AGENTS_KV_ID: Your AGENTS_KV namespace ID');
-      console.error('  - TRAINING_JOBS_KV_ID: Your TRAINING_JOBS_KV namespace ID');
+      console.error('\x1b[36mSTEP 1: Create KV Namespaces in Cloudflare Dashboard\x1b[0m');
+      console.error('  1. Go to: https://dash.cloudflare.com → Workers & Pages → KV');
+      console.error('  2. Click "Create a namespace"');
+      console.error('  3. Create: "agent-trainer-agents" (copy the ID)');
+      console.error('  4. Create: "agent-trainer-training-jobs" (copy the ID)');
       console.error('');
-      console.error('For Cloudflare Pages:');
-      console.error('  1. Go to your Pages project settings');
-      console.error('  2. Navigate to Environment Variables');
-      console.error('  3. Add AGENTS_KV_ID and TRAINING_JOBS_KV_ID with your namespace IDs');
+      console.error('\x1b[36mSTEP 2: Add Environment Variables to Cloudflare Pages\x1b[0m');
+      console.error('  1. Go to: Workers & Pages → Your Project → Settings');
+      console.error('  2. Click "Environment Variables"');
+      console.error('  3. Add for Production AND Preview:');
+      console.error('     • AGENTS_KV_ID = <paste AGENTS namespace ID>');
+      console.error('     • TRAINING_JOBS_KV_ID = <paste TRAINING_JOBS namespace ID>');
       console.error('');
-      console.error('To get namespace IDs, run locally:');
-      console.error('  wrangler kv:namespace create "AGENTS_KV"');
-      console.error('  wrangler kv:namespace create "TRAINING_JOBS_KV"');
+      console.error('\x1b[36mSTEP 3: Update Deploy Command\x1b[0m');
+      console.error('  1. Go to: Workers & Pages → Your Project → Settings → Build');
+      console.error('  2. Change "Deploy command" from "npx wrangler deploy" to:');
+      console.error('     \x1b[32mnpm run deploy\x1b[0m');
+      console.error('');
+      console.error('\x1b[33mThen retry the deployment.\x1b[0m');
+      console.error('');
     } else {
       console.error('Run the setup script to configure KV namespaces:');
       console.error('  npm run setup');
