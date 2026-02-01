@@ -41,13 +41,13 @@ compatibility_date = "2024-08-01"
 # ==============================================================================
 [[kv_namespaces]]
 binding = "AGENTS_KV"
-id = "your_kv_namespace_id"
-preview_id = "your_preview_kv_namespace_id"
+id = "f9353d8e2ebf4efea35c53eb03bf9d88"
+preview_id = "80dac43e2ced4dd4b76ed1aac6aff665"
 
 [[kv_namespaces]]
 binding = "TRAINING_JOBS_KV"
-id = "your_training_jobs_kv_namespace_id"
-preview_id = "your_preview_training_jobs_kv_namespace_id"
+id = "deb83cb64ed24bff876032a6c3fec025"
+preview_id = "61a98c47df0340b2a1b83d40e7b44750"
 
 # Environment variables
 [vars]
