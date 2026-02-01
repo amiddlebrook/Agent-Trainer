@@ -3,6 +3,8 @@ main = "src/index.js"
 compatibility_date = "2024-08-01"
 
 # KV Namespace for storing agents and training jobs
+# IMPORTANT: Replace these placeholder IDs with actual KV namespace IDs from your Cloudflare account
+# Create namespaces with: wrangler kv:namespace create "AGENTS_KV"
 [[kv_namespaces]]
 binding = "AGENTS_KV"
 id = "your_kv_namespace_id"

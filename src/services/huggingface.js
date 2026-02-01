@@ -152,7 +152,8 @@ async function processTextToImage(env, content, model, params) {
     modality: 'text-to-image',
     model,
     prompt: content,
-    generatedImages: ['image_url_1', 'image_url_2'],
+    note: 'Using demo mode - configure HUGGINGFACE_API_KEY for actual image generation',
+    generatedImages: ['placeholder_image_url_1', 'placeholder_image_url_2'],
     timestamp: new Date().toISOString(),
   };
 }
