@@ -14,23 +14,23 @@ export default {
       if (path === '/' && method === 'GET') {
         return handleHome();
       }
-      
+
       if (path === '/api/agents' && method === 'POST') {
         return handleUploadAgent(request, env);
       }
-      
+
       if (path === '/api/agents' && method === 'GET') {
         return handleListAgents(request, env);
       }
-      
+
       if (path === '/api/train' && method === 'POST') {
-        return handleSubmitTraining(request, env);
+        return handleSubmitTraining(request, env, ctx);
       }
-      
+
       if (path.startsWith('/api/train/') && method === 'GET') {
         return handleGetTrainingStatus(request, env);
       }
-      
+
       if (path.startsWith('/api/download/') && method === 'GET') {
         return handleDownloadAgent(request, env);
       }
@@ -39,7 +39,7 @@ export default {
       return new Response('Not Found', { status: 404 });
     } catch (err) {
       console.error('Error:', err);
-      return new Response('Internal Server Error: ' + err.message, { 
+      return new Response('Internal Server Error: ' + err.message, {
         status: 500,
         headers: { 'Content-Type': 'text/plain' }
       });

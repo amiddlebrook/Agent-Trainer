@@ -1,19 +1,19 @@
 import { processTraining } from '../services/huggingface';
 
 // Training job handlers
-export async function handleSubmitTraining(request, env) {
+export async function handleSubmitTraining(request, env, ctx) {
   try {
     const { agentId, modality, contentType, content, params } = await request.json();
-    
+
     if (!agentId || !modality || !content) {
-      return new Response(JSON.stringify({ 
-        error: 'AgentId, modality, and content are required' 
+      return new Response(JSON.stringify({
+        error: 'AgentId, modality, and content are required'
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    
+
     // Verify agent exists
     const agentData = await env.AGENTS_KV.get(`agent:${agentId}`);
     if (!agentData) {
@@ -22,10 +22,10 @@ export async function handleSubmitTraining(request, env) {
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    
+
     // Generate training job ID
     const trainingId = generateId();
-    
+
     // Create training job
     const trainingJob = {
       id: trainingId,
@@ -39,18 +39,18 @@ export async function handleSubmitTraining(request, env) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    
+
     await env.TRAINING_JOBS_KV.put(`training:${trainingId}`, JSON.stringify(trainingJob));
-    
+
     // Start async training process
     // In a real implementation, this would trigger a Durable Object or Queue
     // For now, we'll simulate it with a simple state machine
-    processTrainingJob(env, trainingId, trainingJob);
-    
-    return new Response(JSON.stringify({ 
-      success: true, 
+    ctx.waitUntil(processTrainingJob(env, trainingId, trainingJob));
+
+    return new Response(JSON.stringify({
+      success: true,
       trainingId,
-      message: 'Training job submitted' 
+      message: 'Training job submitted'
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -67,18 +67,18 @@ export async function handleGetTrainingStatus(request, env) {
   try {
     const url = new URL(request.url);
     const trainingId = url.pathname.split('/').pop();
-    
+
     const trainingData = await env.TRAINING_JOBS_KV.get(`training:${trainingId}`);
-    
+
     if (!trainingData) {
       return new Response(JSON.stringify({ error: 'Training job not found' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    
+
     const job = JSON.parse(trainingData);
-    
+
     return new Response(JSON.stringify({
       id: job.id,
       status: job.status,
@@ -109,19 +109,19 @@ async function processTrainingJob(env, trainingId, job) {
     job.message = 'Preparing training data...';
     job.updatedAt = new Date().toISOString();
     await env.TRAINING_JOBS_KV.put(`training:${trainingId}`, JSON.stringify(job));
-    
+
     // Get agent data
     const agentData = await env.AGENTS_KV.get(`agent:${job.agentId}`);
     const agent = JSON.parse(agentData);
-    
+
     // Process with HuggingFace
     job.progress = 30;
     job.message = 'Processing with HuggingFace API...';
     job.updatedAt = new Date().toISOString();
     await env.TRAINING_JOBS_KV.put(`training:${trainingId}`, JSON.stringify(job));
-    
+
     const result = await processTraining(env, job.modality, job.content, job.params);
-    
+
     // Update job with results
     job.status = 'completed';
     job.progress = 100;
@@ -135,7 +135,7 @@ async function processTrainingJob(env, trainingId, job) {
     };
     job.updatedAt = new Date().toISOString();
     await env.TRAINING_JOBS_KV.put(`training:${trainingId}`, JSON.stringify(job));
-    
+
   } catch (error) {
     // Update job with error
     job.status = 'failed';
