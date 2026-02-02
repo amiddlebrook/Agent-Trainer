@@ -285,8 +285,8 @@ export async function handleHome() {
                 <textarea id="contentText" placeholder="Enter your training text here..."></textarea>
             </div>
             <div class="form-group" id="fileInput" style="display: none;">
-                <label for="contentFile">Upload File</label>
-                <input type="file" id="contentFile" />
+                <label for="contentFile">Upload File (video, audio, image, or text)</label>
+                <input type="file" id="contentFile" accept="video/*,audio/*,image/*,.txt,.json,.csv,.md" />
             </div>
             <div class="form-group">
                 <label for="trainingParams">Training Parameters (Optional)</label>
@@ -379,8 +379,27 @@ export async function handleHome() {
             } else if (contentType === 'file') {
                 const file = document.getElementById('contentFile').files[0];
                 if (file) {
-                    // In a real implementation, you'd upload the file first
-                    content = await readFileAsText(file);
+                    // Check file size (limit to 50MB for direct upload)
+                    const maxSize = 50 * 1024 * 1024; // 50MB
+                    if (file.size > maxSize) {
+                        alert('File size exceeds 50MB limit. Please use a smaller file or provide a URL instead.');
+                        return;
+                    }
+
+                    // Check if it's a binary file (video, audio, image)
+                    const isBinaryFile = file.type.startsWith('video/') ||
+                                         file.type.startsWith('audio/') ||
+                                         file.type.startsWith('image/');
+
+                    showAlert('info', 'Reading file: ' + file.name + ' (' + (file.size / 1024 / 1024).toFixed(2) + ' MB)...');
+
+                    if (isBinaryFile) {
+                        // Read binary files as base64 data URL
+                        content = await readFileAsDataURL(file);
+                    } else {
+                        // Read text files as text
+                        content = await readFileAsText(file);
+                    }
                 }
             }
             
@@ -494,6 +513,15 @@ export async function handleHome() {
                 reader.onload = e => resolve(e.target.result);
                 reader.onerror = reject;
                 reader.readAsText(file);
+            });
+        }
+
+        function readFileAsDataURL(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = e => resolve(e.target.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
             });
         }
     </script>

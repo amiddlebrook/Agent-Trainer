@@ -24,7 +24,7 @@ export default {
       }
       
       if (path === '/api/train' && method === 'POST') {
-        return handleSubmitTraining(request, env);
+        return handleSubmitTraining(request, env, ctx);
       }
       
       if (path.startsWith('/api/train/') && method === 'GET') {

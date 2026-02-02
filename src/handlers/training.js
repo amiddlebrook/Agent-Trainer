@@ -1,19 +1,19 @@
 import { processTraining } from '../services/huggingface';
 
 // Training job handlers
-export async function handleSubmitTraining(request, env) {
+export async function handleSubmitTraining(request, env, ctx) {
   try {
     const { agentId, modality, contentType, content, params } = await request.json();
-    
+
     if (!agentId || !modality || !content) {
-      return new Response(JSON.stringify({ 
-        error: 'AgentId, modality, and content are required' 
+      return new Response(JSON.stringify({
+        error: 'AgentId, modality, and content are required'
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    
+
     // Verify agent exists
     const agentData = await env.AGENTS_KV.get(`agent:${agentId}`);
     if (!agentData) {
@@ -22,10 +22,10 @@ export async function handleSubmitTraining(request, env) {
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    
+
     // Generate training job ID
     const trainingId = generateId();
-    
+
     // Create training job
     const trainingJob = {
       id: trainingId,
@@ -39,18 +39,17 @@ export async function handleSubmitTraining(request, env) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    
+
     await env.TRAINING_JOBS_KV.put(`training:${trainingId}`, JSON.stringify(trainingJob));
-    
-    // Start async training process
-    // In a real implementation, this would trigger a Durable Object or Queue
-    // For now, we'll simulate it with a simple state machine
-    processTrainingJob(env, trainingId, trainingJob);
-    
-    return new Response(JSON.stringify({ 
-      success: true, 
+
+    // Start async training process using ctx.waitUntil() to keep worker alive
+    // This ensures the background task completes even after the response is sent
+    ctx.waitUntil(processTrainingJob(env, trainingId, trainingJob));
+
+    return new Response(JSON.stringify({
+      success: true,
       trainingId,
-      message: 'Training job submitted' 
+      message: 'Training job submitted'
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },

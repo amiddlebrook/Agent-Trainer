@@ -44,19 +44,65 @@ export async function processTraining(env, modality, content, params) {
 }
 
 async function processVideoToText(env, content, model, params) {
-  // For video URLs (e.g., YouTube), we would:
-  // 1. Extract frames or download video
-  // 2. Process with video understanding model
-  // For demo purposes, simulate the process
-  
+  const apiKey = env.HUGGINGFACE_API_KEY;
+
+  // Check if content is base64 data URL (from file upload)
+  const isBase64 = content.startsWith('data:video/');
+
+  // If we have a valid API key, try to use the HuggingFace API
+  if (apiKey && apiKey !== 'your-huggingface-api-key-here') {
+    try {
+      const apiUrl = `${env.HUGGINGFACE_API_URL || 'https://api-inference.huggingface.co/models'}/${model}`;
+
+      let requestBody;
+      let headers = {
+        'Authorization': `Bearer ${apiKey}`,
+      };
+
+      if (isBase64) {
+        // Extract the base64 data (remove the data URL prefix)
+        const base64Data = content.split(',')[1];
+        requestBody = base64Data;
+        headers['Content-Type'] = 'application/octet-stream';
+      } else {
+        // URL-based content
+        requestBody = JSON.stringify({ url: content });
+        headers['Content-Type'] = 'application/json';
+      }
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers,
+        body: requestBody,
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        return {
+          modality: 'video-to-text',
+          model,
+          source: isBase64 ? 'uploaded-file' : content,
+          extractedText: result.generated_text || result.text || JSON.stringify(result),
+          confidence: result.confidence || 0.85,
+          timestamp: new Date().toISOString(),
+        };
+      }
+    } catch (error) {
+      console.error('HuggingFace API error:', error);
+      // Fall through to demo mode
+    }
+  }
+
+  // Demo mode fallback
   return {
     modality: 'video-to-text',
     model,
-    source: content,
-    extractedText: 'Video content processed and text extracted',
+    source: isBase64 ? 'uploaded-file (base64)' : content,
+    extractedText: 'Video content processed and text extracted (demo mode)',
     frames: 30,
     duration: '60s',
     confidence: 0.92,
+    note: 'Configure HUGGINGFACE_API_KEY for real video processing',
     timestamp: new Date().toISOString(),
   };
 }
@@ -159,16 +205,74 @@ async function processTextToImage(env, content, model, params) {
 }
 
 async function processAnyToAny(env, content, model, params) {
-  // For multi-modal training:
-  // 1. Detect input type
-  // 2. Process with appropriate model
-  // 3. Generate output in requested format
-  
+  const apiKey = env.HUGGINGFACE_API_KEY;
+
+  // Detect input type from content
+  let inputType = 'text';
+  let isBase64 = false;
+
+  if (content.startsWith('data:video/')) {
+    inputType = 'video';
+    isBase64 = true;
+  } else if (content.startsWith('data:audio/')) {
+    inputType = 'audio';
+    isBase64 = true;
+  } else if (content.startsWith('data:image/')) {
+    inputType = 'image';
+    isBase64 = true;
+  } else if (content.startsWith('http://') || content.startsWith('https://')) {
+    inputType = 'url';
+  }
+
+  // If we have a valid API key, try to use the HuggingFace API
+  if (apiKey && apiKey !== 'your-huggingface-api-key-here') {
+    try {
+      const apiUrl = `${env.HUGGINGFACE_API_URL || 'https://api-inference.huggingface.co/models'}/${model}`;
+
+      let requestBody;
+      let headers = {
+        'Authorization': `Bearer ${apiKey}`,
+      };
+
+      if (isBase64) {
+        const base64Data = content.split(',')[1];
+        requestBody = base64Data;
+        headers['Content-Type'] = 'application/octet-stream';
+      } else {
+        requestBody = JSON.stringify({ inputs: content });
+        headers['Content-Type'] = 'application/json';
+      }
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers,
+        body: requestBody,
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        return {
+          modality: 'any-to-any',
+          model,
+          inputType,
+          input: isBase64 ? `uploaded-${inputType}-file` : content,
+          processedData: result,
+          timestamp: new Date().toISOString(),
+        };
+      }
+    } catch (error) {
+      console.error('HuggingFace API error:', error);
+      // Fall through to demo mode
+    }
+  }
+
+  // Demo mode fallback
   return {
     modality: 'any-to-any',
     model,
-    input: content,
-    processedData: 'Multi-modal content processed',
+    inputType,
+    input: isBase64 ? `uploaded-${inputType}-file (base64)` : content,
+    processedData: 'Multi-modal content processed (demo mode)',
     supportedTransitions: [
       'text-to-text',
       'text-to-speech',
@@ -176,6 +280,7 @@ async function processAnyToAny(env, content, model, params) {
       'image-to-text',
       'text-to-image'
     ],
+    note: 'Configure HUGGINGFACE_API_KEY for real multi-modal processing',
     timestamp: new Date().toISOString(),
   };
 }
