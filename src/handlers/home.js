@@ -1,5 +1,5 @@
 export async function handleHome() {
-  const html = `
+    const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -493,15 +493,15 @@ export async function handleHome() {
                 const reader = new FileReader();
                 reader.onload = e => resolve(e.target.result);
                 reader.onerror = reject;
-                reader.readAsText(file);
+                reader.readAsDataURL(file);
             });
         }
     </script>
 </body>
 </html>
   `;
-  
-  return new Response(html, {
-    headers: { 'Content-Type': 'text/html' },
-  });
+
+    return new Response(html, {
+        headers: { 'Content-Type': 'text/html' },
+    });
 }
