@@ -11,6 +11,11 @@ name = "agent-trainer"
 main = "src/index.js"
 compatibility_date = "2024-08-01"
 
+# Cloudflare Workers AI binding (used as primary AI provider)
+# This enables access to models like Whisper, Stable Diffusion, Llama, etc.
+[ai]
+binding = "AI"
+
 # KV Namespace for storing agents
 # Create with: wrangler kv:namespace create "AGENTS_KV"
 [[kv_namespaces]]

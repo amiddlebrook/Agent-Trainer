@@ -1,7 +1,15 @@
-// HuggingFace API integration for various training modalities
+// AI processing service using Cloudflare AI (primary) and HuggingFace API (fallback)
 
-// Model mappings for different modalities
-const MODALITY_MODELS = {
+// Cloudflare AI model mappings
+const CLOUDFLARE_MODELS = {
+  'text-to-text': '@cf/meta/llama-3.1-8b-instruct',
+  'audio-to-text': '@cf/openai/whisper',
+  'image-to-text': '@cf/llava-hf/llava-1.5-7b-hf',
+  'text-to-image': '@cf/stabilityai/stable-diffusion-xl-base-1.0',
+};
+
+// HuggingFace model mappings (fallback)
+const HUGGINGFACE_MODELS = {
   'video-to-text': 'microsoft/xclip-base-patch32',
   'text-to-text': 'gpt2',
   'audio-to-text': 'openai/whisper-base',
@@ -11,174 +19,389 @@ const MODALITY_MODELS = {
 };
 
 export async function processTraining(env, modality, content, params) {
-  const apiKey = env.HUGGINGFACE_API_KEY;
-  
-  if (!apiKey) {
-    throw new Error('HuggingFace API key not configured');
+  // Try Cloudflare AI first, then fall back to HuggingFace
+  const useCloudflareAI = env.AI && CLOUDFLARE_MODELS[modality];
+
+  if (useCloudflareAI) {
+    try {
+      return await processWithCloudflareAI(env, modality, content, params);
+    } catch (error) {
+      console.error('Cloudflare AI error, falling back to HuggingFace:', error.message);
+      // Fall through to HuggingFace
+    }
   }
-  
-  // Get the appropriate model for the modality
-  const model = params.model || MODALITY_MODELS[modality];
-  
+
+  // Fall back to HuggingFace API
+  return await processWithHuggingFace(env, modality, content, params);
+}
+
+// ============================================================================
+// CLOUDFLARE AI PROCESSING
+// ============================================================================
+
+async function processWithCloudflareAI(env, modality, content, params) {
+  const model = CLOUDFLARE_MODELS[modality];
+
+  switch (modality) {
+    case 'text-to-text':
+      return await cfTextToText(env, content, model, params);
+    case 'audio-to-text':
+      return await cfAudioToText(env, content, model, params);
+    case 'image-to-text':
+      return await cfImageToText(env, content, model, params);
+    case 'text-to-image':
+      return await cfTextToImage(env, content, model, params);
+    default:
+      throw new Error(`Cloudflare AI does not support modality: ${modality}`);
+  }
+}
+
+async function cfTextToText(env, content, model, params) {
+  const messages = [
+    { role: 'system', content: 'You are a helpful AI assistant.' },
+    { role: 'user', content: content }
+  ];
+
+  const response = await env.AI.run(model, {
+    messages,
+    max_tokens: params.max_length || 256,
+    temperature: params.temperature || 0.7,
+  });
+
+  return {
+    modality: 'text-to-text',
+    model,
+    provider: 'cloudflare-ai',
+    input: content.substring(0, 200) + (content.length > 200 ? '...' : ''),
+    output: response.response,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+async function cfAudioToText(env, content, model, params) {
+  // Content should be a URL to an audio file or base64 encoded audio
+  let audioData;
+
+  if (content.startsWith('http://') || content.startsWith('https://')) {
+    // Fetch audio from URL
+    const response = await fetch(content);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch audio from URL: ${response.status}`);
+    }
+    audioData = await response.arrayBuffer();
+  } else if (content.startsWith('data:')) {
+    // Base64 encoded audio
+    const base64Data = content.split(',')[1];
+    audioData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0)).buffer;
+  } else {
+    throw new Error('Audio content must be a URL or base64 encoded data');
+  }
+
+  const response = await env.AI.run(model, {
+    audio: [...new Uint8Array(audioData)],
+  });
+
+  return {
+    modality: 'audio-to-text',
+    model,
+    provider: 'cloudflare-ai',
+    source: content.substring(0, 100),
+    transcription: response.text,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+async function cfImageToText(env, content, model, params) {
+  // Content should be a URL to an image or base64 encoded image
+  let imageData;
+
+  if (content.startsWith('http://') || content.startsWith('https://')) {
+    // Fetch image from URL
+    const response = await fetch(content);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image from URL: ${response.status}`);
+    }
+    imageData = [...new Uint8Array(await response.arrayBuffer())];
+  } else if (content.startsWith('data:')) {
+    // Base64 encoded image
+    const base64Data = content.split(',')[1];
+    imageData = [...Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))];
+  } else {
+    throw new Error('Image content must be a URL or base64 encoded data');
+  }
+
+  const prompt = params.prompt || 'Describe this image in detail.';
+
+  const response = await env.AI.run(model, {
+    image: imageData,
+    prompt: prompt,
+    max_tokens: params.max_length || 256,
+  });
+
+  return {
+    modality: 'image-to-text',
+    model,
+    provider: 'cloudflare-ai',
+    source: content.substring(0, 100),
+    caption: response.description || response.response,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+async function cfTextToImage(env, content, model, params) {
+  const response = await env.AI.run(model, {
+    prompt: content,
+    num_steps: params.num_steps || 20,
+  });
+
+  // Convert the image to base64
+  const base64Image = btoa(String.fromCharCode(...new Uint8Array(response)));
+
+  return {
+    modality: 'text-to-image',
+    model,
+    provider: 'cloudflare-ai',
+    prompt: content,
+    image: `data:image/png;base64,${base64Image}`,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+// ============================================================================
+// HUGGINGFACE API PROCESSING
+// ============================================================================
+
+async function processWithHuggingFace(env, modality, content, params) {
+  const apiKey = env.HUGGINGFACE_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('HuggingFace API key not configured. Set HUGGINGFACE_API_KEY secret.');
+  }
+
+  const model = params.model || HUGGINGFACE_MODELS[modality];
+
   if (!model) {
     throw new Error(`Unknown modality: ${modality}`);
   }
-  
-  // Process based on modality
+
   switch (modality) {
     case 'video-to-text':
-      return await processVideoToText(env, content, model, params);
+      return await hfVideoToText(env, content, model, params);
     case 'text-to-text':
-      return await processTextToText(env, content, model, params);
+      return await hfTextToText(env, content, model, params);
     case 'audio-to-text':
-      return await processAudioToText(env, content, model, params);
+      return await hfAudioToText(env, content, model, params);
     case 'image-to-text':
-      return await processImageToText(env, content, model, params);
+      return await hfImageToText(env, content, model, params);
     case 'text-to-image':
-      return await processTextToImage(env, content, model, params);
+      return await hfTextToImage(env, content, model, params);
     case 'any-to-any':
-      return await processAnyToAny(env, content, model, params);
+      return await hfAnyToAny(env, content, model, params);
     default:
       throw new Error(`Unsupported modality: ${modality}`);
   }
 }
 
-async function processVideoToText(env, content, model, params) {
-  // For video URLs (e.g., YouTube), we would:
-  // 1. Extract frames or download video
-  // 2. Process with video understanding model
-  // For demo purposes, simulate the process
-  
+async function hfApiCall(env, model, payload, isBlob = false) {
+  const apiUrl = `${env.HUGGINGFACE_API_URL}/${model}`;
+
+  const headers = {
+    'Authorization': `Bearer ${env.HUGGINGFACE_API_KEY}`,
+  };
+
+  let body;
+  if (isBlob) {
+    body = payload;
+  } else {
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify(payload);
+  }
+
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers,
+    body,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HuggingFace API error (${response.status}): ${errorText}`);
+  }
+
+  // Check if response is an image (binary)
+  const contentType = response.headers.get('content-type');
+  if (contentType && contentType.includes('image')) {
+    const arrayBuffer = await response.arrayBuffer();
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    return { image: `data:${contentType};base64,${base64}` };
+  }
+
+  return await response.json();
+}
+
+async function hfVideoToText(env, content, model, params) {
+  // For video processing, we need to extract frames first
+  // HuggingFace's xclip model expects video frames
+
+  // Fetch video metadata if it's a URL
+  let videoInfo = { url: content };
+
+  // Extract YouTube ID if applicable
+  const youtubeId = extractYouTubeId(content);
+  if (youtubeId) {
+    videoInfo.youtubeId = youtubeId;
+    videoInfo.type = 'youtube';
+  }
+
+  // Make API call for video understanding
+  const result = await hfApiCall(env, model, {
+    inputs: content,
+    parameters: {
+      ...params,
+    }
+  });
+
   return {
     modality: 'video-to-text',
     model,
+    provider: 'huggingface',
     source: content,
-    extractedText: 'Video content processed and text extracted',
-    frames: 30,
-    duration: '60s',
-    confidence: 0.92,
+    videoInfo,
+    result: Array.isArray(result) ? result : [result],
     timestamp: new Date().toISOString(),
   };
 }
 
-async function processTextToText(env, content, model, params) {
-  // For text-to-text training:
-  // 1. Fine-tune model on provided text
-  // 2. Return trained model parameters
-  
-  const apiUrl = `${env.HUGGINGFACE_API_URL}/${model}`;
-  
-  try {
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${env.HUGGINGFACE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        inputs: content,
-        parameters: {
-          max_length: params.max_length || 100,
-          temperature: params.temperature || 0.7,
-          ...params,
-        }
-      }),
-    });
-    
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`HuggingFace API error: ${error}`);
+async function hfTextToText(env, content, model, params) {
+  const result = await hfApiCall(env, model, {
+    inputs: content,
+    parameters: {
+      max_length: params.max_length || 100,
+      temperature: params.temperature || 0.7,
+      return_full_text: false,
+      ...params,
     }
-    
-    const result = await response.json();
-    
-    return {
-      modality: 'text-to-text',
-      model,
-      processedText: result,
-      trainingData: content.substring(0, 500) + '...',
-      timestamp: new Date().toISOString(),
-    };
-  } catch (error) {
-    // Fallback for demo if API call fails
-    return {
-      modality: 'text-to-text',
-      model,
-      processedText: 'Text processing completed (demo mode)',
-      trainingData: content.substring(0, 500) + '...',
-      note: 'Using demo mode - configure HUGGINGFACE_API_KEY for real processing',
-      timestamp: new Date().toISOString(),
-    };
-  }
+  });
+
+  return {
+    modality: 'text-to-text',
+    model,
+    provider: 'huggingface',
+    input: content.substring(0, 200) + (content.length > 200 ? '...' : ''),
+    output: Array.isArray(result) ? result[0]?.generated_text : result.generated_text,
+    fullResult: result,
+    timestamp: new Date().toISOString(),
+  };
 }
 
-async function processAudioToText(env, content, model, params) {
-  // For audio transcription:
-  // 1. Process audio file or URL
-  // 2. Transcribe using Whisper or similar
-  
+async function hfAudioToText(env, content, model, params) {
+  let audioData;
+
+  if (content.startsWith('http://') || content.startsWith('https://')) {
+    // Fetch audio from URL
+    const response = await fetch(content);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch audio from URL: ${response.status}`);
+    }
+    audioData = await response.arrayBuffer();
+  } else if (content.startsWith('data:')) {
+    // Base64 encoded audio
+    const base64Data = content.split(',')[1];
+    audioData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0)).buffer;
+  } else {
+    throw new Error('Audio content must be a URL or base64 encoded data');
+  }
+
+  // Send raw audio data to Whisper API
+  const result = await hfApiCall(env, model, audioData, true);
+
   return {
     modality: 'audio-to-text',
     model,
-    source: content,
-    transcription: 'Audio content transcribed to text',
-    duration: '120s',
-    confidence: 0.95,
+    provider: 'huggingface',
+    source: content.substring(0, 100),
+    transcription: result.text,
     timestamp: new Date().toISOString(),
   };
 }
 
-async function processImageToText(env, content, model, params) {
-  // For image captioning:
-  // 1. Process image URL or file
-  // 2. Generate captions/descriptions
-  
+async function hfImageToText(env, content, model, params) {
+  let imageData;
+
+  if (content.startsWith('http://') || content.startsWith('https://')) {
+    // Fetch image from URL
+    const response = await fetch(content);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image from URL: ${response.status}`);
+    }
+    imageData = await response.arrayBuffer();
+  } else if (content.startsWith('data:')) {
+    // Base64 encoded image
+    const base64Data = content.split(',')[1];
+    imageData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0)).buffer;
+  } else {
+    throw new Error('Image content must be a URL or base64 encoded data');
+  }
+
+  // Send raw image data to captioning API
+  const result = await hfApiCall(env, model, imageData, true);
+
   return {
     modality: 'image-to-text',
     model,
-    source: content,
-    caption: 'Image content analyzed and described',
-    confidence: 0.89,
+    provider: 'huggingface',
+    source: content.substring(0, 100),
+    caption: Array.isArray(result) ? result[0]?.generated_text : result.generated_text,
+    fullResult: result,
     timestamp: new Date().toISOString(),
   };
 }
 
-async function processTextToImage(env, content, model, params) {
-  // For text-to-image generation:
-  // 1. Generate images from text prompts
-  // 2. Return image URLs or data
-  
+async function hfTextToImage(env, content, model, params) {
+  const result = await hfApiCall(env, model, {
+    inputs: content,
+    parameters: {
+      num_inference_steps: params.num_steps || 50,
+      guidance_scale: params.guidance_scale || 7.5,
+      ...params,
+    }
+  });
+
   return {
     modality: 'text-to-image',
     model,
+    provider: 'huggingface',
     prompt: content,
-    note: 'Using demo mode - configure HUGGINGFACE_API_KEY for actual image generation',
-    generatedImages: ['placeholder_image_url_1', 'placeholder_image_url_2'],
+    image: result.image,
     timestamp: new Date().toISOString(),
   };
 }
 
-async function processAnyToAny(env, content, model, params) {
-  // For multi-modal training:
-  // 1. Detect input type
-  // 2. Process with appropriate model
-  // 3. Generate output in requested format
-  
+async function hfAnyToAny(env, content, model, params) {
+  // SeamlessM4T supports multiple modalities
+  const result = await hfApiCall(env, model, {
+    inputs: content,
+    parameters: {
+      task: params.task || 'text2text',
+      tgt_lang: params.target_language || 'eng',
+      ...params,
+    }
+  });
+
   return {
     modality: 'any-to-any',
     model,
-    input: content,
-    processedData: 'Multi-modal content processed',
-    supportedTransitions: [
-      'text-to-text',
-      'text-to-speech',
-      'speech-to-text',
-      'image-to-text',
-      'text-to-image'
-    ],
+    provider: 'huggingface',
+    input: content.substring(0, 200),
+    result: result,
+    supportedTasks: ['text2text', 'speech2text', 'text2speech', 'speech2speech'],
     timestamp: new Date().toISOString(),
   };
 }
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
 
 // Helper function to extract video ID from YouTube URL
 export function extractYouTubeId(url) {
@@ -186,11 +409,11 @@ export function extractYouTubeId(url) {
     /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/,
     /youtube\.com\/embed\/([^&\n?#]+)/,
   ];
-  
+
   for (const pattern of patterns) {
     const match = url.match(pattern);
     if (match) return match[1];
   }
-  
+
   return null;
 }

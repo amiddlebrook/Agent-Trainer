@@ -39,6 +39,10 @@ compatibility_date = "2024-08-01"
 #   4. wrangler kv:namespace create "TRAINING_JOBS_KV" --preview
 #   5. Replace the placeholder IDs below with the IDs from the command output
 # ==============================================================================
+# Cloudflare Workers AI binding
+[ai]
+binding = "AI"
+
 [[kv_namespaces]]
 binding = "AGENTS_KV"
 id = "f9353d8e2ebf4efea35c53eb03bf9d88"

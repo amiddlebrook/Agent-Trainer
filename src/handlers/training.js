@@ -1,7 +1,7 @@
 import { processTraining } from '../services/huggingface';
 
 // Training job handlers
-export async function handleSubmitTraining(request, env) {
+export async function handleSubmitTraining(request, env, ctx) {
   try {
     const { agentId, modality, contentType, content, params } = await request.json();
     
@@ -41,11 +41,10 @@ export async function handleSubmitTraining(request, env) {
     };
     
     await env.TRAINING_JOBS_KV.put(`training:${trainingId}`, JSON.stringify(trainingJob));
-    
-    // Start async training process
-    // In a real implementation, this would trigger a Durable Object or Queue
-    // For now, we'll simulate it with a simple state machine
-    processTrainingJob(env, trainingId, trainingJob);
+
+    // Start async training process using ctx.waitUntil() to keep worker alive
+    // This ensures the background job completes even after the response is sent
+    ctx.waitUntil(processTrainingJob(env, trainingId, trainingJob));
     
     return new Response(JSON.stringify({ 
       success: true, 
