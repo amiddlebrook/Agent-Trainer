@@ -1,3 +1,1 @@
-# Local development environment variables
-# Copy this to .dev.vars and fill in your values
-HUGGINGFACE_API_KEY=your_huggingface_api_key_here
+ADMIN_TOKEN=replace_with_your_own_random_key_of_12_or_more_characters
