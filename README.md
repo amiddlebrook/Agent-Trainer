@@ -1,320 +1,145 @@
-# 🤖 Agent Trainer
+# Agent Trainer — Agent Intelligence Studio
 
-A Cloudflare native agent trainer that allows you to train AI agents using various modalities powered by HuggingFace.
+**Cloudflare-native, free-tier-friendly agent development studio** with a redesigned dashboard. Create assistant agents, curate input/output reference examples, improve system instructions with Cloudflare Workers AI, test prior versions, and export JSON packages.
+
+**Runtime:** Cloudflare Workers + Workers AI + Workers KV.  
+**CI/CD:** GitHub Actions → Cloudflare Worker.  
+**Paid dependencies:** None. No external model provider or paid subscription required.
+
+> **What "training" means here:** This system performs **prompt optimization and few-shot learning at inference time, not model-weight fine-tuning**. The original app advertised video/audio/image training modes but returned simulated placeholder outputs. Those claims and Hugging Face dependency have been removed. Inference and optimization now actually run on Workers AI; failures are reported rather than faked.
 
 ## Features
 
-- **Multi-Modal Training**: Support for various training modalities:
-  - 🎥 Video-to-Text: Extract and learn from video content
-  - 📝 Text-to-Text: Fine-tune on text data
-  - 🎤 Audio-to-Text: Transcribe and learn from audio
-  - 🖼️ Image-to-Text: Extract insights from images
-  - 🎨 Text-to-Image: Generate images from text
-  - 🔄 Any-to-Any: Multi-modal training capabilities
-
-- **Easy Integration**: Simple web interface to upload agents and training content
-- **HuggingFace Powered**: Leverages HuggingFace's powerful models
-- **Cloudflare Native**: Built on Cloudflare Workers for global edge deployment
-- **Download Trained Agents**: Export your trained agents as JSON
+- Create, edit and delete agent profiles.
+- Version system instructions on manual edits and AI optimizations.
+- Add up to 12 approved input/ideal-response examples per agent.
+- Use Workers AI (Llama 3.1 8B FP8) to optimize system instructions against the examples.
+- Compile a prompt+examples version without consuming an optimization inference call.
+- Test a selected instruction version via real Workers AI inference, with reference examples supplied in context.
+- Download versioned agent JSON configurations.
+- Read existing agent profiles from the legacy KV record shape.
+- Keep agents and inference private with a Cloudflare Worker ADMIN_TOKEN.
+- Run API-contract tests and Worker bundle checks on GitHub pull requests; deploy on main.
 
 ## Architecture
 
-This application is built using:
-- **Cloudflare Workers**: Serverless edge computing
-- **KV Storage**: For storing agents and training jobs
-- **HuggingFace Inference API**: For AI model processing
-- **itty-router**: Lightweight routing for Workers
+~~~text
+Modern browser UI (same-origin REST)
+       |
+       v
+ Cloudflare Worker
+   |             |
+   |             +--- Workers AI (real inference and prompt optimization)
+   |
+   +--- AGENTS_KV (agents / examples / versions)
+   +--- TRAINING_JOBS_KV (completed optimization records)
+       ^
+       |
+ GitHub Actions -> Cloudflare KV bootstrap -> Wrangler deploy
+~~~
 
-## Getting Started
+No external backend, Hugging Face token, Docker or paid model API.
 
-### Prerequisites
+## Run locally
 
-- Node.js (v18 or later)
-- A Cloudflare account
-- Wrangler CLI installed (`npm install -g wrangler`)
-- HuggingFace API key (get one at [huggingface.co](https://huggingface.co))
+Requires Node.js 20 or later.
 
-### Installation
-
-1. Clone the repository:
-```bash
-git clone https://github.com/North-Star-Apps/Agent-Trainer.git
+~~~bash
+git clone https://github.com/amiddlebrook/Agent-Trainer.git
 cd Agent-Trainer
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Login to Cloudflare (if not already):
-```bash
-wrangler login
-```
-
-4. Run the setup script (creates KV namespaces and configures wrangler.toml):
-```bash
-npm run setup
-```
-
-   <details>
-   <summary>Manual setup (alternative)</summary>
-
-   If you prefer to set up manually:
-
-   ```bash
-   # Create KV namespaces
-   wrangler kv:namespace create "AGENTS_KV"
-   wrangler kv:namespace create "TRAINING_JOBS_KV"
-
-   # For preview/development
-   wrangler kv:namespace create "AGENTS_KV" --preview
-   wrangler kv:namespace create "TRAINING_JOBS_KV" --preview
-   ```
-
-   Then update `wrangler.toml` with the namespace IDs from the command output.
-   </details>
-
-5. Set your HuggingFace API key:
-```bash
-wrangler secret put HUGGINGFACE_API_KEY
-# Enter your API key when prompted
-```
-
-6. Verify your configuration:
-```bash
-npm run setup:check
-```
-
-### Development
-
-Run the development server:
-```bash
+npm ci
+cp .dev.vars.example .dev.vars
+# Replace ADMIN_TOKEN in .dev.vars with an unpredictable secret, 12+ characters
 npm run dev
-```
+~~~
 
-The application will be available at `http://localhost:8787`
+Open http://localhost:8787 and unlock the dashboard using your ADMIN_TOKEN. Wrangler's local mode keeps development KV data locally.
 
-### Deployment
+~~~bash
+npm test
+npm run build
+~~~
 
-Deploy to Cloudflare Workers:
-```bash
+## Set up automatic Cloudflare deployment
+
+**One-time setup:**
+
+1. Sign up for a free Cloudflare Workers account and activate your workers.dev subdomain.
+2. Create a Cloudflare API token with **Workers Scripts: Edit** and **Workers KV Storage: Edit** permissions for the account.
+3. Find your **32-character Cloudflare account ID**.
+4. In this repository's GitHub Settings → Secrets and variables → Actions, add:
+   - CLOUDFLARE_API_TOKEN
+   - CLOUDFLARE_ACCOUNT_ID
+5. Merge this branch into main or manually trigger the GitHub workflow **Test and deploy to Cloudflare**. It creates or reuses two free Workers KV namespaces and deploys the Worker.
+6. Configure the app's authorization key **once**:
+
+~~~bash
+npx wrangler login
+npx wrangler secret put ADMIN_TOKEN
+# Enter a long random secret; use it to unlock the deployed dashboard.
+~~~
+
+The Worker is named agent-trainer. Once deployed, it is reachable at the Cloudflare-assigned workers.dev address shown in the GitHub Actions deploy logs. The ADMIN_TOKEN secret must be set under that Worker and Cloudflare account; deployment does not invent a public/default credential.
+
+**Automated CI/CD:**
+
+| Event | Unit tests | Worker dry-run bundle | Cloudflare deploy |
+| --- | --- | --- | --- |
+| Pull request | Yes | Yes | No |
+| Push to main | Yes | Yes | Yes |
+| Manual workflow trigger | Yes | Yes | Yes |
+
+The deploy job runs scripts/bootstrap-cloudflare.mjs to automatically create or reuse namespaces agent-trainer-agents and agent-trainer-jobs, then generates an uncommitted wrangler.ci.toml with your account's real IDs. No KV IDs or paid services have to be purchased or hardcoded for production. The legacy IDs in wrangler.toml are retained for local configuration compatibility only. Missing Cloudflare credentials make the deployment fail visibly, rather than silently presenting success.
+
+Manual deployment with the Cloudflare environment variables configured:
+
+~~~bash
 npm run deploy
-```
+~~~
 
-## Usage
+## REST API
 
-### Web Interface
+Every /api endpoint except /api/health requires Authorization: Bearer YOUR_ADMIN_TOKEN.
 
-1. **Upload Your Agent**
-   - Provide an agent name
-   - Enter agent configuration as JSON
-   - Click "Upload Agent"
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| GET | /api/health | Public health/configuration check |
+| GET, POST | /api/agents | List/create agents |
+| GET, PUT, DELETE | /api/agents/:id | Read/edit/delete agent |
+| POST | /api/agents/:id/examples | Add input/expected-response pair |
+| DELETE | /api/agents/:id/examples/:exampleId | Delete an example |
+| POST | /api/train | Optimize or compile a new agent version |
+| GET | /api/train/:id | Read a saved optimization job |
+| POST | /api/chat | Test a selected version using Workers AI |
+| GET | /api/agents/:id/export | Download full agent JSON |
+| GET | /api/download/:trainingId | Download an optimization result |
 
-2. **Select Training Modality**
-   - Choose from: video-to-text, text-to-text, audio-to-text, image-to-text, text-to-image, or any-to-any
+~~~bash
+curl -X POST https://agent-trainer.YOUR-SUBDOMAIN.workers.dev/api/agents \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Research Analyst","instructions":"Be precise and highlight uncertainty."}'
+~~~
 
-3. **Provide Training Content**
-   - Select content type (URL, direct text, or file upload)
-   - Enter/upload your training content
-   - Optionally provide training parameters
-   - Click "Start Training"
+POST /api/train accepts an agentId and mode: "optimize" (Workers AI optimization) or "compile" (version configuration using the approved examples, no optimization call). You must add at least one example first.
 
-4. **Download Trained Agent**
-   - Monitor training progress
-   - Download your trained agent when complete
+## Real free-tier constraints
 
-### API Endpoints
+Cloudflare Workers Free limits request volume; Workers KV Free currently includes 100,000 reads, 1,000 writes, 1,000 lists and 1,000 deletes per day. Workers AI Free includes 10,000 neurons per day, resetting at 00:00 UTC. Cloudflare rejects above-quota requests on Free rather than silently billing. GitHub Actions is free for this public repository within GitHub's applicable usage policy.
 
-#### Upload Agent
-```bash
-POST /api/agents
-Content-Type: application/json
+See Cloudflare's live documentation for quota updates:
+- https://developers.cloudflare.com/workers-ai/platform/pricing/
+- https://developers.cloudflare.com/kv/platform/pricing/
+- https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/
 
-{
-  "name": "my-agent",
-  "config": {
-    "model": "gpt-3.5-turbo",
-    "temperature": 0.7
-  }
-}
-```
+The workspace token prevents anonymous usage of the inference quota, and the UI stores it only in sessionStorage. Do not put ADMIN_TOKEN into version control.
 
-#### List Agents
-```bash
-GET /api/agents
-```
+## Important limitations
 
-#### Submit Training Job
-```bash
-POST /api/train
-Content-Type: application/json
+- Optimizes prompts; does not fine-tune model weights or handle real multimodal training.
+- Agents are suitable for a single-owner configuration workspace. Workers KV is eventually consistent and not suitable for concurrent writes by multiple administrators.
+- A prompt version snapshots its instructions. At test time, current reference examples are applied alongside the selected version; this is not a rigorous immutable dataset benchmark.
+- Model capacity and free-tier availability are not guaranteed. Real inference failures are surfaced.
+- Legacy helper scripts and Hugging Face modules remain as inactive historical files, not imported by the deployed app.
 
-{
-  "agentId": "agent_id",
-  "modality": "text-to-text",
-  "contentType": "url",
-  "content": "https://example.com/training-data",
-  "params": {
-    "epochs": 3,
-    "learning_rate": 0.001
-  }
-}
-```
-
-#### Get Training Status
-```bash
-GET /api/train/:trainingId
-```
-
-#### Download Trained Agent
-```bash
-GET /api/download/:trainingId
-```
-
-## Configuration
-
-### Environment Variables
-
-- `HUGGINGFACE_API_URL`: HuggingFace API base URL (default: https://api-inference.huggingface.co/models)
-
-### Secrets
-
-- `HUGGINGFACE_API_KEY`: Your HuggingFace API key (required)
-
-### KV Namespaces
-
-- `AGENTS_KV`: Stores uploaded agent configurations
-- `TRAINING_JOBS_KV`: Stores training job status and results
-
-## Supported Models
-
-The application uses the following HuggingFace models by default:
-
-- **video-to-text**: microsoft/xclip-base-patch32
-- **text-to-text**: gpt2
-- **audio-to-text**: openai/whisper-base
-- **image-to-text**: nlpconnect/vit-gpt2-image-captioning
-- **text-to-image**: stabilityai/stable-diffusion-2-1
-- **any-to-any**: facebook/seamless-m4t-large
-
-You can override these by providing a `model` parameter in your training request.
-
-## Development
-
-### Project Structure
-
-```
-Agent-Trainer/
-├── src/
-│   ├── index.js              # Main worker entry point
-│   ├── handlers/
-│   │   ├── home.js           # Frontend HTML interface
-│   │   ├── agents.js         # Agent management handlers
-│   │   ├── training.js       # Training job handlers
-│   │   └── download.js       # Download handler
-│   └── services/
-│       └── huggingface.js    # HuggingFace API integration
-├── scripts/
-│   ├── setup.sh              # Automated KV namespace setup (local)
-│   ├── check-config.js       # Configuration validation
-│   └── configure-wrangler.js # CI/CD configuration generator
-├── package.json
-├── wrangler.toml             # Cloudflare Worker configuration
-├── wrangler.toml.example     # Example configuration template
-└── README.md
-```
-
-## Troubleshooting
-
-### "KV namespace 'your_kv_namespace_id' is not valid" error
-
-This error occurs when deploying with placeholder KV namespace IDs. Run the setup script to create and configure your namespaces:
-
-```bash
-npm run setup
-```
-
-### Verifying configuration before deployment
-
-Run the configuration check to ensure everything is set up correctly:
-
-```bash
-npm run setup:check
-```
-
-### CI/CD Deployment
-
-For automated deployments (e.g., Cloudflare Pages, GitHub Actions), use the `deploy:ci` command which configures wrangler.toml from environment variables:
-
-#### Step 1: Create KV Namespaces
-
-Create KV namespaces via Cloudflare dashboard or wrangler CLI:
-
-```bash
-wrangler kv:namespace create "AGENTS_KV"
-wrangler kv:namespace create "TRAINING_JOBS_KV"
-```
-
-Note the namespace IDs from the output.
-
-#### Step 2: Set Environment Variables
-
-Set these environment variables in your CI/CD environment:
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `AGENTS_KV_ID` | Yes | KV namespace ID for AGENTS_KV |
-| `TRAINING_JOBS_KV_ID` | Yes | KV namespace ID for TRAINING_JOBS_KV |
-| `AGENTS_KV_PREVIEW_ID` | No | Preview namespace ID (defaults to production) |
-| `TRAINING_JOBS_KV_PREVIEW_ID` | No | Preview namespace ID (defaults to production) |
-| `HUGGINGFACE_API_URL` | No | Custom HuggingFace API URL |
-| `WORKER_NAME` | No | Custom worker name (defaults to 'agent-trainer') |
-
-#### Step 3: Configure Build Command
-
-**For Cloudflare Pages:**
-1. Go to your Pages project settings
-2. Set the build command to: `npm run deploy:ci`
-3. Add the environment variables in the "Environment variables" section
-
-**For GitHub Actions:**
-```yaml
-- name: Deploy to Cloudflare
-  env:
-    AGENTS_KV_ID: ${{ secrets.AGENTS_KV_ID }}
-    TRAINING_JOBS_KV_ID: ${{ secrets.TRAINING_JOBS_KV_ID }}
-    CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-  run: npm run deploy:ci
-```
-
-#### Step 4: Set HuggingFace API Key
-
-Set the `HUGGINGFACE_API_KEY` secret:
-```bash
-wrangler secret put HUGGINGFACE_API_KEY
-```
-
-Or configure it in your Cloudflare dashboard under Workers & Pages > your-worker > Settings > Variables
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-MIT License - see LICENSE file for details
-
-## Support
-
-For issues and questions, please open an issue on GitHub.
-
-## Roadmap
-
-- [ ] Add support for more HuggingFace models
-- [ ] Implement Durable Objects for better job management
-- [ ] Add R2 storage for large files
-- [ ] Support for batch training
-- [ ] Real-time training progress updates via WebSockets
-- [ ] Model versioning and comparison
-- [ ] Integration with more data sources
+MIT License.
