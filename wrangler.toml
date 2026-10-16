@@ -1,44 +1,14 @@
 name = "agent-trainer"
 main = "src/index.js"
-compatibility_date = "2024-08-01"
+compatibility_date = "2026-09-01"
+workers_dev = true
 
-# ==============================================================================
-# SETUP REQUIRED: KV Namespace Configuration
-# ==============================================================================
-# The KV namespace IDs below are PLACEHOLDERS and must be replaced before deployment.
-#
-# OPTION 1: Local Development (Quick setup)
-#   npm run setup
-#
-# OPTION 2: CI/CD Deployment (Cloudflare Pages, GitHub Actions, etc.)
-#   The predeploy hook automatically configures wrangler.toml when these
-#   environment variables are set and a CI environment is detected:
-#
-#   Required environment variables:
-#     - AGENTS_KV_ID: Your AGENTS_KV namespace ID
-#     - TRAINING_JOBS_KV_ID: Your TRAINING_JOBS_KV namespace ID
-#
-#   Optional environment variables:
-#     - AGENTS_KV_PREVIEW_ID: Preview namespace ID (defaults to production)
-#     - TRAINING_JOBS_KV_PREVIEW_ID: Preview namespace ID (defaults to production)
-#
-#   For Cloudflare Pages:
-#     1. Create KV namespaces in Cloudflare Dashboard (Workers & Pages > KV)
-#     2. Add AGENTS_KV_ID and TRAINING_JOBS_KV_ID as environment variables
-#        in your Pages project settings (Settings > Environment Variables)
-#     3. Deploy - configuration happens automatically!
-#
-#   To get namespace IDs locally:
-#     wrangler kv:namespace create "AGENTS_KV"
-#     wrangler kv:namespace create "TRAINING_JOBS_KV"
-#
-# OPTION 3: Manual setup
-#   1. wrangler kv:namespace create "AGENTS_KV"
-#   2. wrangler kv:namespace create "TRAINING_JOBS_KV"
-#   3. wrangler kv:namespace create "AGENTS_KV" --preview
-#   4. wrangler kv:namespace create "TRAINING_JOBS_KV" --preview
-#   5. Replace the placeholder IDs below with the IDs from the command output
-# ==============================================================================
+# Original bindings retained for local development.
+# CI deploys use scripts/bootstrap-cloudflare.mjs to discover or provision
+# account-owned namespaces in a generated, uncommitted wrangler.ci.toml.
+[ai]
+binding = "AI"
+
 [[kv_namespaces]]
 binding = "AGENTS_KV"
 id = "f9353d8e2ebf4efea35c53eb03bf9d88"
@@ -48,13 +18,3 @@ preview_id = "80dac43e2ced4dd4b76ed1aac6aff665"
 binding = "TRAINING_JOBS_KV"
 id = "deb83cb64ed24bff876032a6c3fec025"
 preview_id = "61a98c47df0340b2a1b83d40e7b44750"
-
-# Environment variables
-[vars]
-HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/models"
-
-# Secrets (set with: wrangler secret put HUGGINGFACE_API_KEY)
-# HUGGINGFACE_API_KEY = "your_api_key"
-
-[ai]
-binding = "AI"

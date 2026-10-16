@@ -1,26 +1,18 @@
 {
   "name": "agent-trainer",
-  "version": "1.0.0",
-  "description": "Cloudflare native agent trainer with HuggingFace integration",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare-native agent prompt optimization studio",
   "main": "src/index.js",
   "scripts": {
     "dev": "wrangler dev",
-    "predeploy": "node scripts/check-config.js",
-    "deploy": "node scripts/check-config.js && wrangler deploy",
     "start": "wrangler dev",
-    "setup": "bash scripts/setup.sh",
-    "setup:check": "node scripts/check-config.js",
-    "configure": "node scripts/configure-wrangler.js",
-    "build": "node scripts/check-config.js"
+    "test": "node --test",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "bootstrap:cloudflare": "node scripts/bootstrap-cloudflare.mjs",
+    "deploy": "npm run bootstrap:cloudflare && wrangler deploy --config wrangler.ci.toml"
   },
-  "keywords": [
-    "cloudflare",
-    "workers",
-    "agent-training",
-    "huggingface",
-    "ml"
-  ],
-  "author": "",
   "license": "MIT",
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240806.0",
