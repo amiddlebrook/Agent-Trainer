@@ -45,3 +45,17 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --config wrangler.ci.toml
+      - name: Synchronize optional workspace access secret
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WORKSPACE_ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          if [ -n "$WORKSPACE_ADMIN_TOKEN" ]; then
+            printf '%s' "$WORKSPACE_ADMIN_TOKEN" | npx wrangler secret put ADMIN_TOKEN --config wrangler.ci.toml
+            echo "Workspace access configured using the ADMIN_TOKEN GitHub Actions secret."
+          else
+            echo "::notice::No ADMIN_TOKEN GitHub Actions secret supplied. Existing Cloudflare Worker secret (if any) is preserved."
+          fi
+      - name: Verify deployed Worker endpoints
+        run: node scripts/smoke.mjs https://agent-trainer.averymiddlebrook2014.workers.dev
